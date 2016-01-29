@@ -1,0 +1,121 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Jose Ali Cruz Ramirez"
+date: "January 18, 2016"
+output: html_document
+---
+
+**Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+**Data**
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+
+**Reproducibility**
+
+Libraries Needed
+
+```{r}
+library(abind)
+library(arm)
+library(caret)
+library(kernlab)
+library(klaR)
+library(rattle)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+set.seed(12345)
+
+# Loading the training and testing data set previously downloaded to local machine and replacing all missing values with "NA"
+trainset <- read.csv("~/Practical Machine Learning/Assigment/pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+
+testset <- read.csv("~/Practical Machine Learning/Assigment/pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+
+# Check dimensions for number of variables and number of observations
+dim(trainset)
+dim(testset)
+
+# Delete columns with all missing values
+trainset<-trainset[,colSums(is.na(trainset)) == 0]
+testset <-testset[,colSums(is.na(testset)) == 0]
+
+# Delete the first seven columns irrelevant variables to our analysis like user_name, raw_timestamp_part_1, etc.
+trainset   <-trainset[,-c(1:7)]
+testset <-testset[,-c(1:7)]
+
+# Second look after cleansing
+# dim(trainset)
+# dim(testset)
+# head(trainset)
+# head(testset)
+
+subsamples <- createDataPartition(y=trainset$classe, p=0.75, list=FALSE)
+subTrain <- trainset[subsamples, ] 
+subTest <- trainset[-subsamples, ]
+# dim(subTrain)
+# dim(subTest)
+# head(subTrain)
+# head(subTest)
+
+plot(subTrain$classe, col="blue", main="Bar Plot of levels of the variable classe within the subTraining data set", xlab="classe levels", ylab="Frequency")
+
+model1 <- rpart(classe ~ ., data=subTrain, method="class")
+
+# Predicting:
+prediction1 <- predict(model1, subTest, type = "class")
+
+# Plot of the Decision Tree
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+# Test results on our subTesting data set:
+confusionMatrix(prediction1, subTest$classe)
+
+model2 <- randomForest(classe ~. , data=subTrain, method="class")
+
+# Predicting:
+prediction2 <- predict(model2, subTest, type = "class")
+
+# Test results on subTesting data set:
+confusionMatrix(prediction2, subTest$classe)
+
+
+# Correlation analysis:
+
+Hcorr <- caret::findCorrelation(cor(subTrain[, -53]), cutoff=0.8)
+names(subTrain)[Hcorr]
+
+# Taking longer to execute evaluate later
+# tc <- trainControl(method = "cv", number = 7, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
+
+# rf <- train(classe ~ ., data = subTrain, method = "rf", trControl= tc)
+# svmr <- train(classe ~ ., data = subTrain, method = "svmRadial", trControl= tc)
+# NN <- train(classe ~ ., data = subTrain, method = "nnet", trControl= tc, verbose=FALSE)
+
+```
+
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
