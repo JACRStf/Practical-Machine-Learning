@@ -1,15 +1,15 @@
 ---
 title: "Practical Machine Learning Course Project"
 author: "Jose Ali Cruz Ramirez"
-date: "January 18, 2016"
+date: "January 30, 2016"
 output: html_document
 ---
 
-**Background**
+### Background
 
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
 
-**Data**
+### Data
 
 The training data for this project are available here:
 
@@ -20,11 +20,38 @@ The test data are available here:
 <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
 
 
-**Reproducibility**
+### Reproducibility
 
-Libraries Needed
+In order to reproduce the results below use pseudo-random number generator seed 1234 and also different packages needs to be downloaded and istalled, such as caret, random forest, kernlab, and rattle.
 
-```{r}
+#### Model construction explanation
+
+Our outcome variable is __*classe*__, a factor variable with 5 levels. For this data set, “participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions:
+
+>
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes." [1]
+Prediction evaluations will be based on maximizing the accuracy and minimizing the out-of-sample error. All other available variables after cleaning will be used for prediction.
+Two models will be tested using decision tree and random forest algorithms. The model with the highest accuracy will be chosen as our final model.
+
+**Cross-validation** will be performed by subsampling our training data set randomly without replacement into 2 subsamples: subTraining data (75% of the original Training data set) and subTesting data (25%). Our models will be fitted on the subTraining data set, and tested on the subTesting data. Once the most accurate model is choosen, it will be tested on the original Testing data set.
+
+The **expected out-of-sample error** will correspond to the quantity: 1-accuracy in the cross-validation data. Accuracy is the proportion of correct classified observation over the total sample in the subTesting data set. Expected accuracy is the expected accuracy in the out-of-sample data set (i.e. original testing data set). Thus, the expected value of the out-of-sample error will correspond to the expected number of missclassified observations/total observations in the Test data set, which is the quantity: 1-accuracy found from the cross-validation data set.
+
+Our outcome variable __*“classe”*__ is an unordered factor variable. Thus, we can choose our error type as 1-accuracy. We have a large sample size with N= 19622 in the Training data set. This allow us to divide our Training sample into subTraining and subTesting to allow cross-validation. Features with all missing values will be discarded as well as features that are irrelevant. All other features will be kept as relevant variables.
+Decision tree and random forest algorithms are known for their ability of detecting the features that are important for classification [2]. Feature selection is inherent, so it is not so necessary at the data preparation phase. Thus, there won’t be any feature selection section in this report.
+
+### Code and Results
+
+Loading libraries, and setting the seed for reproduceability:
+
+```{r, message=FALSE, warning=FALSE}
+setwd("~/Practical Machine Learning")
 library(abind)
 library(arm)
 library(caret)
@@ -35,7 +62,11 @@ library(randomForest)
 library(rpart)
 library(rpart.plot)
 set.seed(12345)
+```
 
+Loading data sets, preliminary cleaning, and removing irrelevant variables.
+
+```{r, message=FALSE, warning=FALSE}
 # Loading the training and testing data set previously downloaded to local machine and replacing all missing values with "NA"
 trainset <- read.csv("~/Practical Machine Learning/Assigment/pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
 
@@ -52,23 +83,35 @@ testset <-testset[,colSums(is.na(testset)) == 0]
 # Delete the first seven columns irrelevant variables to our analysis like user_name, raw_timestamp_part_1, etc.
 trainset   <-trainset[,-c(1:7)]
 testset <-testset[,-c(1:7)]
+```
 
-# Second look after cleansing
-# dim(trainset)
-# dim(testset)
-# head(trainset)
-# head(testset)
+Partitioning the training data set to allow cross-validation
+The training data set contains 53 variables and 19622 obs.
+The testing data set contains 53 variables and 20 obs.
+In order to perform cross-validation, the training data set is partionned into 2 sets: subTraining (75%) and subTest (25%).
+This will be performed using random subsampling without replacement.
 
+
+```{r, message=FALSE, warning=FALSE}
 subsamples <- createDataPartition(y=trainset$classe, p=0.75, list=FALSE)
 subTrain <- trainset[subsamples, ] 
 subTest <- trainset[-subsamples, ]
-# dim(subTrain)
-# dim(subTest)
-# head(subTrain)
-# head(subTest)
 
+# Correlation analysis:
+Hcorr <- caret::findCorrelation(cor(subTrain[, -53]), cutoff=0.8)
+names(subTrain)[Hcorr]
+```
+
+#### Visual data analysis 
+The variable “classe” contains 5 levels: A, B, C, D and E. A plot of the outcome variable will allow us to see the frequency of each levels in the subTraining data set and compare one another.
+
+```{r, message=FALSE, warning=FALSE}
 plot(subTrain$classe, col="blue", main="Bar Plot of levels of the variable classe within the subTraining data set", xlab="classe levels", ylab="Frequency")
+```
 
+#### Prediction models:
+##### Decision Tree
+```{r, message=FALSE, warning=FALSE}
 model1 <- rpart(classe ~ ., data=subTrain, method="class")
 
 # Predicting:
@@ -79,7 +122,10 @@ rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
 
 # Test results on our subTesting data set:
 confusionMatrix(prediction1, subTest$classe)
+```
 
+##### Random Forest
+```{r, message=FALSE, warning=FALSE}
 model2 <- randomForest(classe ~. , data=subTrain, method="class")
 
 # Predicting:
@@ -88,34 +134,37 @@ prediction2 <- predict(model2, subTest, type = "class")
 # Test results on subTesting data set:
 confusionMatrix(prediction2, subTest$classe)
 
-
-# Correlation analysis:
-
-Hcorr <- caret::findCorrelation(cor(subTrain[, -53]), cutoff=0.8)
-names(subTrain)[Hcorr]
-
-# Taking longer to execute evaluate later
-# tc <- trainControl(method = "cv", number = 7, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
-
-# rf <- train(classe ~ ., data = subTrain, method = "rf", trControl= tc)
-# svmr <- train(classe ~ ., data = subTrain, method = "svmRadial", trControl= tc)
-# NN <- train(classe ~ ., data = subTrain, method = "nnet", trControl= tc, verbose=FALSE)
-
 ```
 
+### Conclusions
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Comparison between the two prediction models
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Model        |Accuracy                 
+-------------|------------------------------
+Decision Tree|0.739 (95% CI: (0.727, 0.752))
+Random Forest|0.995 (95% CI: (0.993, 0.997))
 
-```{r}
-summary(cars)
+As expected, Random Forest algorithm performed better than Decision Trees.
+
+The random Forest model should be choose. The accuracy of the model is 0.995. The expected out-of-sample error is estimated at 0.5%. The expected out-of-sample error is calculated as 1 - accuracy for predictions made against the cross-validation set. Our Test data set comprises 20 cases. With an accuracy above 99% on our cross-validation data, we can expect that very few, or none, of the test samples will be missclassified. 
+
+### Submission
+```{r, message=FALSE, warning=FALSE}
+# predict outcome levels on the original Testing data set using Random Forest algorithm
+predictfinal <- predict(model2, testset, type="class")
+predictfinal
 ```
 
-You can also embed plots, for example:
+```{r, message=FALSE, warning=FALSE}
+# Write files for submission
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
 
-```{r, echo=FALSE}
-plot(cars)
+pml_write_files(predictfinal)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
